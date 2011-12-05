@@ -18,7 +18,7 @@ const (
 )
 
 func init() {
-	http.Handle("/", http.FileServer(http.Dir("static")))
+	http.Handle("/", http.RedirectHandler("http://surma.github.com/trendinghubs", http.StatusMovedPermanently))
 	http.HandleFunc("/feed", generateFeed)
 }
 
@@ -77,8 +77,9 @@ func GetFeed(c appengine.Context) *Feed {
 func generateFeed(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
 	feed := GetFeed(c)
-	if feed != nil {
+	if feed == nil {
 		http.Error(w, "", http.StatusInternalServerError)
+		return
 	}
 	w.Header().Set("Content-Type", "application/rss+xml")
 	tpl := template.Must(template.New("feed").Parse(rawtemplate))
@@ -86,8 +87,7 @@ func generateFeed(w http.ResponseWriter, r *http.Request) {
 }
 
 var (
-	rawtemplate = `
-<?xml version="1.0" encoding="utf-8"?>
+	rawtemplate = `<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0">
   <channel>
     <title>GitHub - Trending GitHub Repositories</title>
