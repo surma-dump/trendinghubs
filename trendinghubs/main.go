@@ -1,12 +1,14 @@
 package trendinghubs
 
 import (
+	"appengine"
+	"appengine/urlfetch"
 	// "fmt"
-	"http"
 	"html"
+	"http"
+	"os"
 	"strings"
 	"template"
-	"os"
 )
 
 func init() {
@@ -15,7 +17,9 @@ func init() {
 }
 
 func generateFeed(w http.ResponseWriter, r *http.Request) {
-	list, e := GetTrendingRepositories()
+	c := appengine.NewContext(r)
+	client := urlfetch.Client(c)
+	list, e := GetTrendingRepositories(client)
 	if e != nil {
 		http.Error(w, e.String(), http.StatusInternalServerError)
 	}
@@ -37,7 +41,7 @@ var (
     <item>
       <title>{{.User}} / {{.Name}}</title>
       <link>https://www.github.com/{{.User}}/{{.Name}}</link>
-      <author>{{.Name}}</author>
+      <author>{{.User}}</author>
     </item>
 	{{end}}
   </channel>
@@ -50,8 +54,8 @@ type Repository struct {
 	Name string
 }
 
-func GetTrendingRepositories() ([]Repository, os.Error) {
-	resp, e := http.DefaultClient.Get("https://www.github.com/explore")
+func GetTrendingRepositories(client *http.Client) ([]Repository, os.Error) {
+	resp, e := client.Get("https://www.github.com/explore")
 	if e != nil {
 		return nil, e
 	}
@@ -67,7 +71,7 @@ func GetTrendingRepositories() ([]Repository, os.Error) {
 		if repo != nil && !hasClass("last", item) {
 			owner := repo.Child[1].Child[0].Data
 			name := repo.Child[3].Child[0].Data
-			list = append(list, Repository {
+			list = append(list, Repository{
 				User: owner,
 				Name: name,
 			})
@@ -76,6 +80,7 @@ func GetTrendingRepositories() ([]Repository, os.Error) {
 	return list, nil
 
 }
+
 type QualFunc func(node *html.Node) bool
 
 func findNextNode(start *html.Node, hasQualifier QualFunc) *html.Node {
