@@ -3,12 +3,18 @@ package trendinghubs
 import (
 	"appengine"
 	"appengine/urlfetch"
-	// "fmt"
+	"appengine/datastore"
 	"html"
 	"http"
+	"json"
 	"os"
 	"strings"
 	"template"
+	"time"
+)
+
+const (
+	MAX_AGE = 60 * 60 * 2 // 2 hours
 )
 
 func init() {
@@ -16,16 +22,67 @@ func init() {
 	http.HandleFunc("/feed", generateFeed)
 }
 
+type Feed struct {
+	Timestamp datastore.Time
+	List      []Repository
+}
+
+type serialized_feed struct {
+	Data []byte
+}
+
+func getCachedFeed(c appengine.Context) *Feed {
+
+	fs := &serialized_feed{}
+	key := datastore.NewKey(c, "Feed", "cache", 0, nil)
+	e := datastore.Get(c, key, fs)
+	if e != nil {
+		return nil
+	}
+
+	feed := &Feed{}
+	json.Unmarshal(fs.Data, feed)
+
+	if feed.Timestamp.Time().Seconds()-time.Seconds() >= MAX_AGE {
+		return nil
+	}
+	return feed
+}
+
+func GetFeed(c appengine.Context) *Feed {
+	feed := getCachedFeed(c)
+	if feed == nil {
+		c.Debugf("GetFeed: Cache miss\n")
+		client := urlfetch.Client(c)
+		list, e := GetTrendingRepositories(client)
+		if e != nil {
+			return nil
+		}
+
+		feed = &Feed{
+			Timestamp: datastore.SecondsToTime(time.Seconds()),
+			List:      list,
+		}
+		data, _ := json.Marshal(feed)
+
+		key := datastore.NewKey(c, "Feed", "cache", 0, nil)
+		_, e = datastore.Put(c, key, &serialized_feed{data})
+		if e != nil {
+			c.Warningf("Could not cache: %s\n", e.String())
+		}
+	}
+	return feed
+}
+
 func generateFeed(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	client := urlfetch.Client(c)
-	list, e := GetTrendingRepositories(client)
-	if e != nil {
-		http.Error(w, e.String(), http.StatusInternalServerError)
+	feed := GetFeed(c)
+	if feed != nil {
+		http.Error(w, "", http.StatusInternalServerError)
 	}
 	w.Header().Set("Content-Type", "application/rss+xml")
 	tpl := template.Must(template.New("feed").Parse(rawtemplate))
-	tpl.Execute(w, list)
+	tpl.Execute(w, feed)
 }
 
 var (
@@ -37,7 +94,7 @@ var (
     <link>https://www.github.com</link>
     <description>The daily trending repositories</description>
     <language>en-US</language>
-    {{range .}}
+    {{range .List}}
     <item>
       <title>{{.User}} / {{.Name}}</title>
       <link>https://www.github.com/{{.User}}/{{.Name}}</link>
