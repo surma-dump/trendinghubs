@@ -1,0 +1,31 @@
+@import "compass/reset";
+@import "compass/css3/gradient";
+
+#container {
+	font-family: Helvetica;
+	letter-spacing: 1px;
+	font-size: 13px;
+	line-height: 1.5em;
+	margin-top: 50px;
+	width: 100%;
+	@include linear-gradient(color-stops(#FFF, #EEE), top);
+	border-bottom: 1px solid #AAA;
+	padding: 50px;
+}
+
+div.wrapper {
+	width: 320px;
+	margin: 0 auto;
+}
+p {
+	display: block;
+	margin: 10px 0;
+	&.important {
+		text-align: center;
+		font-size: 1.5em;
+		a {
+			font-size: inherit;
+		}
+		margin: 20px 0;
+	}
+}
