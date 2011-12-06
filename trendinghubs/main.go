@@ -43,7 +43,7 @@ func getCachedFeed(c appengine.Context) *Feed {
 	feed := &Feed{}
 	json.Unmarshal(fs.Data, feed)
 
-	if feed.Timestamp.Time().Seconds()-time.Seconds() >= MAX_AGE {
+	if time.Seconds()-feed.Timestamp.Time().Seconds() >= MAX_AGE {
 		return nil
 	}
 	return feed
